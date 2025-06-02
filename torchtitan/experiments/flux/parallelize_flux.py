@@ -35,6 +35,7 @@ def parallelize_flux(
             dp_mesh_dim_names = ("dp_shard",)
 
         apply_fsdp(
+            job_config,
             model,
             world_mesh[tuple(dp_mesh_dim_names)],
             param_dtype=TORCH_DTYPE_MAP[job_config.training.mixed_precision_param],
@@ -51,6 +52,7 @@ def parallelize_flux(
 
 
 def apply_fsdp(
+    job_config: JobConfig,
     model: nn.Module,
     dp_mesh: DeviceMesh,
     param_dtype: torch.dtype,
@@ -79,20 +81,28 @@ def apply_fsdp(
         model.txt_in,
     ]
     for layer in linear_layers:
+        if job_config.training.compile:
+            layer.compile(fullgraph=True)
         fully_shard(layer, **fsdp_config)
 
     for block in model.double_blocks:
+        if job_config.training.compile:
+            block.compile(fullgraph=True)
         fully_shard(
             block,
             **fsdp_config,
         )
 
     for block in model.single_blocks:
+        if job_config.training.compile:
+            block.compile(fullgraph=True)
         fully_shard(
             block,
             **fsdp_config,
         )
     # apply FSDP to last layer. Set reshard_after_forward=False for last layer to avoid gather right after reshard
+    if job_config.training.compile:
+        model.final_layer.compile(fullgraph=True)
     fully_shard(model.final_layer, **fsdp_config, reshard_after_forward=False)
 
     # Wrap all the rest of model
@@ -138,10 +148,14 @@ def parallelize_encoders(
             fsdp_config["offload_policy"] = CPUOffloadPolicy()
         # FSDP for encoder blocks
         for block in clip_model.hf_module.text_model.encoder.layers:
+            if job_config.training.compile:
+                block.compile(fullgraph=True)
             fully_shard(block, **fsdp_config)
         fully_shard(clip_model, **fsdp_config)
 
         for block in t5_model.hf_module.encoder.block:
+            if job_config.training.compile:
+                block.compile(fullgraph=True)
             fully_shard(block, **fsdp_config)
         fully_shard(t5_model.hf_module, **fsdp_config)
 
