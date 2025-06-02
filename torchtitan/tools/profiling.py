@@ -42,7 +42,26 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
 
             logger.info(f"Dumping profiler traces at step {prof.step_num}")
             begin = time.monotonic()
-            prof.export_chrome_trace(f"{curr_trace_dir}/rank{rank}_trace.json")
+            trace_path = f"{curr_trace_dir}/rank{rank}_trace.json"
+            prof.export_chrome_trace(trace_path)
+
+            # Run the manifold upload command
+            if torch.distributed.get_rank() == 0:
+                import datetime
+                import subprocess
+                timestamp = int(datetime.datetime.now().timestamp())
+                manifold_path = f"gpu_traces/tree/willfeng/flux/trace_{timestamp}.json"
+                result = subprocess.run(
+                    ["manifold", "put", trace_path, manifold_path],
+                    capture_output=True,
+                    text=True
+                )
+                
+                if result.returncode == 0:
+                    print(f"GPU trace URL (requires VPN): https://interncache-all.fbcdn.net/manifold/perfetto-artifacts/tree/ui/index.html#!/?url=https://interncache-all.fbcdn.net/manifold/gpu_traces/tree/willfeng/flux/trace_{timestamp}.json")
+                else:
+                    print(f"Failed to upload trace: {result.stderr}")
+
             logger.info(
                 f"Finished dumping profiler traces in {time.monotonic() - begin:.2f} seconds"
             )
@@ -52,7 +71,7 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
         if not os.path.exists(trace_dir):
             os.makedirs(trace_dir, exist_ok=True)
 
-        warmup, active = WARMUP, 1
+        warmup, active = WARMUP, 5
         wait = profile_freq - (active + warmup)
         assert (
             wait >= 0
