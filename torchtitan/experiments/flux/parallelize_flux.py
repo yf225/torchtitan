@@ -48,6 +48,7 @@ def parallelize_flux(
         else:
             logger.info("Applied FSDP to the model")
 
+    model = torch.compile(model)
     return model
 
 
@@ -81,28 +82,20 @@ def apply_fsdp(
         model.txt_in,
     ]
     for layer in linear_layers:
-        if job_config.training.compile:
-            layer.compile(fullgraph=True)
         fully_shard(layer, **fsdp_config)
 
     for block in model.double_blocks:
-        if job_config.training.compile:
-            block.compile(fullgraph=True)
         fully_shard(
             block,
             **fsdp_config,
         )
 
     for block in model.single_blocks:
-        if job_config.training.compile:
-            block.compile(fullgraph=True)
         fully_shard(
             block,
             **fsdp_config,
         )
     # apply FSDP to last layer. Set reshard_after_forward=False for last layer to avoid gather right after reshard
-    if job_config.training.compile:
-        model.final_layer.compile(fullgraph=True)
     fully_shard(model.final_layer, **fsdp_config, reshard_after_forward=False)
 
     # Wrap all the rest of model
@@ -148,14 +141,10 @@ def parallelize_encoders(
             fsdp_config["offload_policy"] = CPUOffloadPolicy()
         # FSDP for encoder blocks
         for block in clip_model.hf_module.text_model.encoder.layers:
-            if job_config.training.compile:
-                block.compile(fullgraph=True)
             fully_shard(block, **fsdp_config)
         fully_shard(clip_model, **fsdp_config)
 
         for block in t5_model.hf_module.encoder.block:
-            if job_config.training.compile:
-                block.compile(fullgraph=True)
             fully_shard(block, **fsdp_config)
         fully_shard(t5_model.hf_module, **fsdp_config)
 
@@ -164,4 +153,6 @@ def parallelize_encoders(
         else:
             logger.info("Applied FSDP to the T5 and CLIP model")
 
+    t5_model = torch.compile(t5_model)
+    clip_model = torch.compile(clip_model)
     return t5_model, clip_model
