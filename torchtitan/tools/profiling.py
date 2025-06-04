@@ -44,6 +44,7 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
             begin = time.monotonic()
             trace_path = f"{curr_trace_dir}/rank{rank}_trace.json"
             prof.export_chrome_trace(trace_path)
+            print(f"Local GPU trace path: {trace_path}")
 
             # Run the manifold upload command
             if torch.distributed.get_rank() == 0:
@@ -62,6 +63,7 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
                 else:
                     print(f"Failed to upload trace: {result.stderr}")
 
+            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=100))
             logger.info(
                 f"Finished dumping profiler traces in {time.monotonic() - begin:.2f} seconds"
             )
