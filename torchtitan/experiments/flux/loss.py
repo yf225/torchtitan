@@ -23,5 +23,5 @@ def build_mse_loss(job_config: JobConfig):
     loss_fn = mse_loss
     if job_config.training.compile:
         logger.info("Compiling the loss function with torch.compile")
-        loss_fn = torch.compile(loss_fn)
+        loss_fn = torch.compile(loss_fn, mode="max-autotune")
     return loss_fn
