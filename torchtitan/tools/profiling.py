@@ -15,7 +15,7 @@ from torchtitan.config_manager import JobConfig
 from torchtitan.tools.logging import logger
 
 # the number of warmup steps before the active step in each profiling cycle
-WARMUP = 3
+WARMUP = 5
 
 # how much memory allocation/free ops to record in memory snapshots
 MEMORY_SNAPSHOT_MAX_ENTRIES = 100000
@@ -63,7 +63,7 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
                 else:
                     print(f"Failed to upload trace: {result.stderr}")
 
-            print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=100))
+            print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=1000))
             logger.info(
                 f"Finished dumping profiler traces in {time.monotonic() - begin:.2f} seconds"
             )
@@ -73,7 +73,7 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
         if not os.path.exists(trace_dir):
             os.makedirs(trace_dir, exist_ok=True)
 
-        warmup, active = WARMUP, 5
+        warmup, active = WARMUP, 1
         wait = profile_freq - (active + warmup)
         assert (
             wait >= 0
@@ -83,7 +83,8 @@ def maybe_enable_profiling(config: JobConfig, *, global_step: int = 0):
             gpu_device_profiled = torch.profiler.ProfilerActivity.CUDA
         elif torch.xpu.is_available():
             gpu_device_profiled = torch.profiler.ProfilerActivity.XPU
-        with torch.profiler.profile(
+        profiler_fn = torch.profiler.profile
+        with profiler_fn(
             activities=[
                 torch.profiler.ProfilerActivity.CPU,
                 gpu_device_profiled,
