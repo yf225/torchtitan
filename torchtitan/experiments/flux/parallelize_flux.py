@@ -48,7 +48,8 @@ def parallelize_flux(
         else:
             logger.info("Applied FSDP to the model")
 
-    model = torch.compile(model, mode="max-autotune-no-cudagraphs")
+    if job_config.training.compile:
+        model = torch.compile(model, mode="max-autotune-no-cudagraphs")
     return model
 
 
@@ -153,6 +154,7 @@ def parallelize_encoders(
         else:
             logger.info("Applied FSDP to the T5 and CLIP model")
 
-    t5_model = torch.compile(t5_model, mode="max-autotune-no-cudagraphs")
-    clip_model = torch.compile(clip_model, mode="max-autotune-no-cudagraphs")
+    if job_config.training.compile:
+        t5_model = torch.compile(t5_model, mode="max-autotune-no-cudagraphs")
+        clip_model = torch.compile(clip_model, mode="max-autotune-no-cudagraphs")
     return t5_model, clip_model
